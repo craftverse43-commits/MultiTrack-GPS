@@ -4,7 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MultiTrack GPS - Employee Approval</title>
+  <title>MultiTrack GPS - Admin Dashboard</title>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -13,13 +14,20 @@
       padding: 20px;
       margin: 0;
     }
-    .container { max-width: 650px; margin: auto; }
+
+    .container {
+      max-width: 650px;
+      margin: auto;
+    }
+
     .panel {
       background: white;
       padding: 20px;
       border-radius: 12px;
       margin: 16px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
+
     input {
       box-sizing: border-box;
       width: 100%;
@@ -29,6 +37,7 @@
       border-radius: 7px;
       font-size: 15px;
     }
+
     button {
       padding: 12px 18px;
       background: #1d4ed8;
@@ -38,40 +47,78 @@
       margin-top: 8px;
       cursor: pointer;
     }
-    .danger { background: #64748b; }
-    .hidden { display: none; }
+
+    button:disabled {
+      opacity: 0.6;
+    }
+
+    .danger {
+      background: #64748b;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
     .employee {
       padding: 12px;
       border-bottom: 1px solid #e2e8f0;
       overflow-wrap: anywhere;
     }
-    #message { margin-top: 12px; }
+
+    #message {
+      margin-top: 12px;
+      overflow-wrap: anywhere;
+    }
   </style>
 </head>
+
 <body>
+
 <div class="container">
+
   <h1>MultiTrack GPS</h1>
   <p>Admin Employee Approval</p>
 
+  <!-- ADMIN LOGIN -->
   <div class="panel" id="loginPanel">
     <h2>Admin Login</h2>
-    <input id="email" type="email" placeholder="Admin Email">
-    <input id="password" type="password" placeholder="Admin Password">
+
+    <input id="email" type="email"
+      placeholder="Admin Email">
+
+    <input id="password" type="password"
+      placeholder="Admin Password">
+
     <button id="loginBtn">Login</button>
   </div>
 
+  <!-- ADMIN DASHBOARD -->
   <div class="panel hidden" id="adminPanel">
-    <h2>Authorize Employee</h2>
+
+    <h2>Admin Dashboard</h2>
+
+    <h3>Authorize Employee</h3>
+
     <p>Enter the Firebase Authentication UID of an employee.</p>
-    <input id="employeeUid" placeholder="Employee Firebase UID">
+
+    <input id="employeeUid"
+      placeholder="Employee Firebase UID">
+
     <button id="approveBtn">Approve Employee</button>
 
-    <h2>Authorized Employees</h2>
+    <h3>Authorized Employees</h3>
+
     <div id="employeeList">Loading...</div>
-    <button class="danger" id="logoutBtn">Logout</button>
+
+    <button class="danger" id="logoutBtn">
+      Logout
+    </button>
+
   </div>
 
   <p id="message"></p>
+
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -79,112 +126,203 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 
 <script>
-  // Replace these values with your Firebase Web App config.
-  const firebaseConfig = {
-    apiKey: "AIzaSyDQAe8VJIfwoxykr45mPoNXGFkMnG3Q8M0",
-    authDomain: "multitrack-gps.firebaseapp.com",
-    databaseURL: "https://multitrack-gps-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "multitrack-gps",
-    storageBucket: "multitrack-gps.firebasestorage.app",
-    messagingSenderId: "646292574395",
-    appId: "1:646292574395:web:4d97b3aced2aad3fd1199e",
-    measurementId: "G-FVWTQ5HRRG"
-  };
 
-  firebase.initializeApp(firebaseConfig);
+// FIREBASE CONFIGURATION
 
-  const auth = firebase.auth();
-  const db = firebase.database();
+const firebaseConfig = {
+  apiKey: "AIzaSyDQAe8VJIfwoxykr45mPoNXGFkMnG3Q8M0",
+  authDomain: "multitrack-gps.firebaseapp.com",
+  databaseURL: "https://multitrack-gps-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "multitrack-gps",
+  storageBucket: "multitrack-gps.firebasestorage.app",
+  messagingSenderId: "646292574395",
+  appId: "1:646292574395:web:4d97b3aced2aad3fd1199e",
+  measurementId: "G-FVWTQ5HRRG"
+};
 
-  const message = document.getElementById("message");
-  const loginPanel = document.getElementById("loginPanel");
-  const adminPanel = document.getElementById("adminPanel");
+firebase.initializeApp(firebaseConfig);
 
-  function showMessage(text, error = false) {
-    message.textContent = text;
-    message.style.color = error ? "#dc2626" : "#15803d";
-  }
+const auth = firebase.auth();
+const db = firebase.database();
 
-  
+// ADMIN UID
+
+const ADMIN_UID = "Mc3aac9Pijcu3M0vDDAxGQ59FM32";
+
+// HTML ELEMENTS
+
+const message = document.getElementById("message");
+const loginPanel = document.getElementById("loginPanel");
+const adminPanel = document.getElementById("adminPanel");
+
+function showMessage(text, error = false) {
+  message.textContent = text;
+  message.style.color = error ? "#dc2626" : "#15803d";
+}
+
+// CHECK LOGIN STATUS
+
 auth.onAuthStateChanged(user => {
-  if (user) {
-    showMessage("Checking Admin Account...");
 
-    if (user.uid.trim() === "Mc3aac9Pijcu3M0vDDAxGQ59FM32") {
+  if (user) {
+
+    if (user.uid.trim() === ADMIN_UID) {
+
       loginPanel.classList.add("hidden");
       adminPanel.classList.remove("hidden");
 
-      showMessage("Admin verified successfully!");
+      showMessage("ADMIN VERIFIED SUCCESSFULLY!");
 
       loadEmployees();
+
     } else {
+
       adminPanel.classList.add("hidden");
       loginPanel.classList.remove("hidden");
 
-      showMessage("UID Mismatch. Admin account not verified.", true);
+      showMessage(
+        "UID MISMATCH. This account is not Admin.",
+        true
+      );
+
     }
+
   } else {
+
     adminPanel.classList.add("hidden");
     loginPanel.classList.remove("hidden");
+
     showMessage("Please login as Admin.");
+
   }
+
 });
 
+// ADMIN LOGIN
 
-  document.getElementById("loginBtn").onclick = async () => {
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
+document.getElementById("loginBtn").onclick = async () => {
 
-    try {
-      await auth.signInWithEmailAndPassword(email, password);
-      showMessage("Admin login successful.");
-    } catch (error) {
-      showMessage(error.message, true);
-    }
-  };
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
 
-  document.getElementById("approveBtn").onclick = async () => {
-    const uid = document.getElementById("employeeUid").value.trim();
-
-    if (!uid) {
-      showMessage("Enter an employee UID.", true);
-      return;
-    }
-
-    try {
-      await db.ref("authorizedEmployees/" + uid).set(true);
-      document.getElementById("employeeUid").value = "";
-      showMessage("Employee authorized successfully.");
-      loadEmployees();
-    } catch (error) {
-      showMessage(error.message, true);
-    }
-  };
-
-  function loadEmployees() {
-    db.ref("authorizedEmployees").once("value")
-      .then(snapshot => {
-        const list = document.getElementById("employeeList");
-        list.textContent = "";
-
-        if (!snapshot.exists()) {
-          list.textContent = "No authorized employees yet.";
-          return;
-        }
-
-        snapshot.forEach(child => {
-          const item = document.createElement("div");
-          item.className = "employee";
-          item.textContent = "UID: " + child.key + " — Authorized";
-          list.appendChild(item);
-        });
-      })
-      .catch(error => showMessage(error.message, true));
+  if (!email || !password) {
+    showMessage("Enter Email and Password.", true);
+    return;
   }
 
-  document.getElementById("logoutBtn").onclick = () => {
-    auth.signOut();
-  };
+  const btn = document.getElementById("loginBtn");
+  btn.disabled = true;
+
+  try {
+
+    await auth.signInWithEmailAndPassword(email, password);
+
+    showMessage("Login successful. Verifying Admin...");
+
+  } catch (error) {
+
+    showMessage(error.message, true);
+
+  } finally {
+
+    btn.disabled = false;
+
+  }
+
+};
+
+// APPROVE EMPLOYEE
+
+document.getElementById("approveBtn").onclick = async () => {
+
+  const uid = document.getElementById("employeeUid").value.trim();
+
+  if (!uid) {
+    showMessage("Enter an employee UID.", true);
+    return;
+  }
+
+  try {
+
+    await db.ref("authorizedEmployees/" + uid).set(true);
+
+    document.getElementById("employeeUid").value = "";
+
+    showMessage("Employee authorized successfully.");
+
+    loadEmployees();
+
+  } catch (error) {
+
+    showMessage(error.message, true);
+
+  }
+
+};
+
+// LOAD AUTHORIZED EMPLOYEES
+
+function loadEmployees() {
+
+  const list = document.getElementById("employeeList");
+
+  list.textContent = "Loading employees...";
+
+  db.ref("authorizedEmployees").once("value")
+
+    .then(snapshot => {
+
+      list.textContent = "";
+
+      if (!snapshot.exists()) {
+        list.textContent = "No authorized employees yet.";
+        return;
+      }
+
+      snapshot.forEach(child => {
+
+        const item = document.createElement("div");
+
+        item.className = "employee";
+
+        item.textContent =
+          "UID: " + child.key + " — Authorized";
+
+        list.appendChild(item);
+
+      });
+
+    })
+
+    .catch(error => {
+
+      list.textContent = "Unable to load employees.";
+
+      showMessage(error.message, true);
+
+    });
+
+}
+
+// LOGOUT
+
+document.getElementById("logoutBtn").onclick = async () => {
+
+  try {
+
+    await auth.signOut();
+
+    showMessage("Logged out successfully.");
+
+  } catch (error) {
+
+    showMessage(error.message, true);
+
+  }
+
+};
+
 </script>
+
 </body>
 </html>
