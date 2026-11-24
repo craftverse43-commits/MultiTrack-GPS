@@ -4,20 +4,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MultiTrack GPS Admin</title>
+<title>MultiTrack GPS - Employee Management</title>
 
 <style>
+* { box-sizing: border-box; }
+
 body {
   font-family: Arial, sans-serif;
   background: #f1f5f9;
   color: #1e293b;
-  padding: 20px;
+  padding: 16px;
   margin: 0;
 }
+
 .container {
-  max-width: 650px;
+  max-width: 750px;
   margin: auto;
 }
+
 .panel {
   background: white;
   padding: 20px;
@@ -25,8 +29,10 @@ body {
   margin: 16px 0;
   box-shadow: 0 2px 8px #00000010;
 }
+
+.hidden { display: none !important; }
+
 input {
-  box-sizing: border-box;
   width: 100%;
   padding: 13px;
   margin: 8px 0;
@@ -34,26 +40,50 @@ input {
   border-radius: 7px;
   font-size: 15px;
 }
+
 button {
-  padding: 12px 18px;
+  padding: 11px 15px;
   background: #1d4ed8;
   color: white;
   border: 0;
   border-radius: 7px;
-  margin-top: 8px;
+  margin: 5px 3px 5px 0;
   cursor: pointer;
 }
-button:disabled { opacity: 0.6; }
-.danger { background: #64748b; }
-.hidden { display: none !important; }
+
+button:disabled { opacity: .6; }
+
+.approve { background: #15803d; }
+.reject { background: #dc2626; }
+.logout { background: #64748b; }
+.refresh { background: #475569; }
+
 .employee {
-  padding: 12px;
-  border-bottom: 1px solid #e2e8f0;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 14px;
+  margin: 12px 0;
   overflow-wrap: anywhere;
 }
+
+.employee p {
+  margin: 7px 0;
+}
+
+.status {
+  font-weight: bold;
+  text-transform: capitalize;
+}
+
 #message {
-  margin-top: 12px;
+  padding: 10px 0;
   overflow-wrap: anywhere;
+}
+
+.section-title {
+  margin-top: 25px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
 }
 </style>
 </head>
@@ -63,32 +93,52 @@ button:disabled { opacity: 0.6; }
 <div class="container">
 
 <h1>MultiTrack GPS</h1>
-<p>Admin Employee Approval</p>
+<p>Admin Employee Management</p>
+
+<!-- LOGIN -->
 
 <div class="panel" id="loginPanel">
+
   <h2>Admin Login</h2>
 
-  <input id="email" type="email" placeholder="Admin Email">
-  <input id="password" type="password" placeholder="Admin Password">
+  <input
+    id="email"
+    type="email"
+    placeholder="Admin Email"
+  >
+
+  <input
+    id="password"
+    type="password"
+    placeholder="Admin Password"
+  >
 
   <button id="loginBtn">Login</button>
+
 </div>
+
+<!-- ADMIN DASHBOARD -->
 
 <div class="panel hidden" id="adminPanel">
 
   <h2>Admin Dashboard</h2>
 
-  <h3>Authorize Employee</h3>
+  <button class="refresh" id="refreshBtn">
+    Refresh Employees
+  </button>
 
-  <input id="employeeUid" placeholder="Employee Firebase UID">
+  <h3 class="section-title">Pending Employees</h3>
+  <div id="pendingList">Loading...</div>
 
-  <button id="approveBtn">Approve Employee</button>
+  <h3 class="section-title">Approved Employees</h3>
+  <div id="approvedList">Loading...</div>
 
-  <h3>Authorized Employees</h3>
+  <h3 class="section-title">Rejected Employees</h3>
+  <div id="rejectedList">Loading...</div>
 
-  <div id="employeeList">Loading...</div>
-
-  <button class="danger" id="logoutBtn">Logout</button>
+  <button class="logout" id="logoutBtn">
+    Logout
+  </button>
 
 </div>
 
@@ -124,23 +174,29 @@ const db = firebase.database();
 
 const ADMIN_UID = "Mc3aac9Pijcu3M0vDDAxGQ59FM32";
 
-// HTML ELEMENTS
+// ELEMENTS
 
 const loginPanel = document.getElementById("loginPanel");
 const adminPanel = document.getElementById("adminPanel");
 const message = document.getElementById("message");
+
+const pendingList = document.getElementById("pendingList");
+const approvedList = document.getElementById("approvedList");
+const rejectedList = document.getElementById("rejectedList");
+
+let loadingEmployees = false;
+
+// MESSAGE
 
 function showMessage(text, error = false) {
   message.textContent = text;
   message.style.color = error ? "#dc2626" : "#15803d";
 }
 
-// HIDE ADMIN PANEL UNTIL AUTHENTICATION IS CHECKED
+// AUTHENTICATION
 
 adminPanel.classList.add("hidden");
 loginPanel.classList.add("hidden");
-
-// AUTHENTICATION CHECK
 
 auth.onAuthStateChanged(user => {
 
@@ -168,7 +224,7 @@ auth.onAuthStateChanged(user => {
 
 });
 
-// ADMIN LOGIN
+// LOGIN
 
 document.getElementById("loginBtn").onclick = async () => {
 
@@ -177,7 +233,7 @@ document.getElementById("loginBtn").onclick = async () => {
   const btn = document.getElementById("loginBtn");
 
   if (!email || !password) {
-    showMessage("Enter Email and Password.", true);
+    showMessage("Enter Admin Email and Password.", true);
     return;
   }
 
@@ -201,82 +257,201 @@ document.getElementById("loginBtn").onclick = async () => {
 
 };
 
-// APPROVE EMPLOYEE
+// CHECK ADMIN BEFORE DATABASE ACTIONS
 
-document.getElementById("approveBtn").onclick = async () => {
+function checkAdmin() {
+  return auth.currentUser &&
+    auth.currentUser.uid === ADMIN_UID;
+}
 
-  const uid = document.getElementById("employeeUid").value.trim();
+// LOAD EMPLOYEES
 
-  if (!uid) {
-    showMessage("Enter Employee UID.", true);
-    return;
+async function loadEmployees() {
+
+  if (!checkAdmin() || loadingEmployees) return;
+
+  loadingEmployees = true;
+
+  pendingList.textContent = "Loading...";
+  approvedList.textContent = "Loading...";
+  rejectedList.textContent = "Loading...";
+
+  try {
+
+    const snapshot = await db.ref("employeeProfiles").once("value");
+
+    pendingList.textContent = "";
+    approvedList.textContent = "";
+    rejectedList.textContent = "";
+
+    if (!snapshot.exists()) {
+
+      pendingList.textContent = "No employee registrations found.";
+      approvedList.textContent = "No approved employees.";
+      rejectedList.textContent = "No rejected employees.";
+
+      return;
+
+    }
+
+    let pendingCount = 0;
+    let approvedCount = 0;
+    let rejectedCount = 0;
+
+    snapshot.forEach(child => {
+
+      const uid = child.key;
+      const employee = child.val();
+
+      const status = employee.status || "pending";
+
+      const card = document.createElement("div");
+      card.className = "employee";
+
+      const name = document.createElement("p");
+      name.textContent = "Name: " + (employee.name || "Not available");
+
+      const email = document.createElement("p");
+      email.textContent = "Email: " + (employee.email || "Not available");
+
+      const statusText = document.createElement("p");
+      statusText.className = "status";
+      statusText.textContent = "Status: " + status;
+
+      const uidText = document.createElement("p");
+      uidText.textContent = "UID: " + uid;
+
+      card.append(name, email, statusText, uidText);
+
+      if (status === "pending") {
+
+        pendingCount++;
+
+        const approveBtn = document.createElement("button");
+        approveBtn.className = "approve";
+        approveBtn.textContent = "Approve";
+
+        approveBtn.onclick = () => approveEmployee(uid);
+
+        const rejectBtn = document.createElement("button");
+        rejectBtn.className = "reject";
+        rejectBtn.textContent = "Reject";
+
+        rejectBtn.onclick = () => rejectEmployee(uid);
+
+        card.append(approveBtn, rejectBtn);
+
+        pendingList.appendChild(card);
+
+      } else if (status === "approved") {
+
+        approvedCount++;
+        approvedList.appendChild(card);
+
+      } else if (status === "rejected") {
+
+        rejectedCount++;
+        rejectedList.appendChild(card);
+
+      }
+
+    });
+
+    if (!pendingCount) {
+      pendingList.textContent = "No pending employees.";
+    }
+
+    if (!approvedCount) {
+      approvedList.textContent = "No approved employees.";
+    }
+
+    if (!rejectedCount) {
+      rejectedList.textContent = "No rejected employees.";
+    }
+
+    showMessage("Employee list updated successfully.");
+
+  } catch (error) {
+
+    showMessage("Unable to load employees: " + error.message, true);
+
+  } finally {
+
+    loadingEmployees = false;
+
   }
 
-  if (!auth.currentUser || auth.currentUser.uid !== ADMIN_UID) {
+}
+
+// APPROVE EMPLOYEE
+
+async function approveEmployee(uid) {
+
+  if (!checkAdmin()) {
     showMessage("Admin authorization required.", true);
     return;
   }
 
+  if (!confirm("Approve this employee?")) return;
+
   try {
 
-    await db.ref("authorizedEmployees/" + uid).set(true);
+    const updates = {};
 
-    document.getElementById("employeeUid").value = "";
+    updates["employeeProfiles/" + uid + "/status"] = "approved";
+    updates["authorizedEmployees/" + uid] = true;
 
-    showMessage("Employee authorized successfully.");
+    await db.ref().update(updates);
+
+    showMessage("Employee approved successfully.");
 
     loadEmployees();
 
   } catch (error) {
 
-    showMessage(error.message, true);
+    showMessage("Approval failed: " + error.message, true);
 
   }
 
-};
+}
 
-// LOAD EMPLOYEES
+// REJECT EMPLOYEE
 
-function loadEmployees() {
+async function rejectEmployee(uid) {
 
-  const list = document.getElementById("employeeList");
+  if (!checkAdmin()) {
+    showMessage("Admin authorization required.", true);
+    return;
+  }
 
-  list.textContent = "Loading employees...";
+  if (!confirm("Reject this employee?")) return;
 
-  db.ref("authorizedEmployees").once("value")
+  try {
 
-    .then(snapshot => {
+    const updates = {};
 
-      list.textContent = "";
+    updates["employeeProfiles/" + uid + "/status"] = "rejected";
+    updates["authorizedEmployees/" + uid] = null;
 
-      if (!snapshot.exists()) {
-        list.textContent = "No authorized employees yet.";
-        return;
-      }
+    await db.ref().update(updates);
 
-      snapshot.forEach(child => {
+    showMessage("Employee rejected successfully.");
 
-        const item = document.createElement("div");
+    loadEmployees();
 
-        item.className = "employee";
+  } catch (error) {
 
-        item.textContent = "UID: " + child.key + " — Authorized";
+    showMessage("Rejection failed: " + error.message, true);
 
-        list.appendChild(item);
-
-      });
-
-    })
-
-    .catch(error => {
-
-      list.textContent = "Unable to load employees.";
-
-      showMessage(error.message, true);
-
-    });
+  }
 
 }
+
+// REFRESH
+
+document.getElementById("refreshBtn").onclick = () => {
+  loadEmployees();
+};
 
 // LOGOUT
 
