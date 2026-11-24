@@ -105,21 +105,31 @@
     message.style.color = error ? "#dc2626" : "#15803d";
   }
 
-  auth.onAuthStateChanged(user => {
-  if (user && user.uid === "Mc3aac9Pijcu3M0vDDAxGQ59FM32") {
-    loginPanel.classList.add("hidden");
-    adminPanel.classList.remove("hidden");
-    loadEmployees();
+  
+auth.onAuthStateChanged(user => {
+  if (user) {
+    showMessage("Checking Admin Account...");
+
+    if (user.uid.trim() === "Mc3aac9Pijcu3M0vDDAxGQ59FM32") {
+      loginPanel.classList.add("hidden");
+      adminPanel.classList.remove("hidden");
+
+      showMessage("Admin verified successfully!");
+
+      loadEmployees();
+    } else {
+      adminPanel.classList.add("hidden");
+      loginPanel.classList.remove("hidden");
+
+      showMessage("UID Mismatch. Admin account not verified.", true);
+    }
   } else {
     adminPanel.classList.add("hidden");
     loginPanel.classList.remove("hidden");
-
-    if (user) {
-      auth.signOut();
-      showMessage("Admin access only. Please login with Admin account.", true);
-    }
+    showMessage("Please login as Admin.");
   }
 });
+
 
   document.getElementById("loginBtn").onclick = async () => {
     const email = document.getElementById("email").value.trim();
