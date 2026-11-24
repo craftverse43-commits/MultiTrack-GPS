@@ -20,7 +20,10 @@ body {
   margin: 0;
 }
 
-.container { max-width: 850px; margin: auto; }
+.container {
+  max-width: 850px;
+  margin: auto;
+}
 
 .panel {
   background: white;
@@ -50,6 +53,8 @@ button {
   margin: 5px 3px 5px 0;
   cursor: pointer;
 }
+
+button:disabled { opacity: .6; }
 
 .approve { background: #15803d; }
 .reject { background: #dc2626; }
@@ -83,30 +88,59 @@ button {
   padding: 10px 0;
   overflow-wrap: anywhere;
 }
+
+#gpsStatus {
+  font-weight: bold;
+}
 </style>
 </head>
 
 <body>
+
 <div class="container">
 
 <h1>MultiTrack GPS</h1>
 <p>Admin Employee Management & Live GPS Map</p>
 
+<!-- LOGIN PANEL -->
+
 <div class="panel" id="loginPanel">
+
   <h2>Admin Login</h2>
-  <input id="email" type="email" placeholder="Admin Email">
-  <input id="password" type="password" placeholder="Admin Password">
+
+  <input
+    id="email"
+    type="email"
+    placeholder="Admin Email"
+    autocomplete="username"
+  >
+
+  <input
+    id="password"
+    type="password"
+    placeholder="Admin Password"
+    autocomplete="current-password"
+  >
+
   <button id="loginBtn">Login</button>
+
 </div>
+
+<!-- ADMIN PANEL -->
 
 <div class="panel hidden" id="adminPanel">
 
   <h2>Live GPS Map</h2>
+
   <p id="gpsStatus">Waiting for GPS locations...</p>
+
   <div id="map"></div>
 
   <h2>Employee Management</h2>
-  <button class="refresh" id="refreshBtn">Refresh Employees</button>
+
+  <button class="refresh" id="refreshBtn">
+    Refresh Employees
+  </button>
 
   <h3 class="section-title">Pending Employees</h3>
   <div id="pendingList">Loading...</div>
@@ -117,19 +151,30 @@ button {
   <h3 class="section-title">Rejected Employees</h3>
   <div id="rejectedList">Loading...</div>
 
-  <button class="logout" id="logoutBtn">Logout</button>
+  <button class="logout" id="logoutBtn">
+    Logout
+  </button>
+
 </div>
 
 <p id="message"></p>
 
 </div>
 
+<!-- FIREBASE -->
+
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+<!-- LEAFLET MAP -->
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
+
+// FIREBASE CONFIGURATION
+
 const firebaseConfig = {
   apiKey: "AIzaSyDQAe8VJIfwoxykr45mPoNXGFkMnG3Q8M0",
   authDomain: "multitrack-gps.firebaseapp.com",
@@ -146,7 +191,11 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
 
+// ADMIN UID
+
 const ADMIN_UID = "Mc3aac9Pijcu3M0vDDAxGQ59FM32";
+
+// ELEMENTS
 
 const loginPanel = document.getElementById("loginPanel");
 const adminPanel = document.getElementById("adminPanel");
@@ -157,24 +206,33 @@ const approvedList = document.getElementById("approvedList");
 const rejectedList = document.getElementById("rejectedList");
 const gpsStatus = document.getElementById("gpsStatus");
 
+// VARIABLES
+
 let map = null;
 let markers = {};
 let employeeNames = {};
 let locationListenerActive = false;
+let locationListener = null;
+let initializing = false;
+
+// MESSAGE
 
 function showMessage(text, error = false) {
   message.textContent = text;
   message.style.color = error ? "#dc2626" : "#15803d";
 }
 
+// ADMIN CHECK
+
 function checkAdmin() {
   return auth.currentUser &&
          auth.currentUser.uid === ADMIN_UID;
 }
 
-// MAP INITIALIZATION
+// INITIALIZE MAP
 
 function initializeMap() {
+
   if (map) {
     setTimeout(() => map.invalidateSize(), 200);
     return;
@@ -182,10 +240,13 @@ function initializeMap() {
 
   map = L.map("map").setView([7.8731, 80.7718], 7);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors",
-    maxZoom: 19
-  }).addTo(map);
+  L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 19
+    }
+  ).addTo(map);
 
   setTimeout(() => map.invalidateSize(), 300);
 }
@@ -193,10 +254,15 @@ function initializeMap() {
 // LOAD EMPLOYEES
 
 async function loadEmployees() {
+
   if (!checkAdmin()) return;
 
   try {
-    const snapshot = await db.ref("employeeProfiles").once("value");
+
+    const snapshot =
+      await db.ref("employeeProfiles").once("value");
+
+    if (!checkAdmin()) return;
 
     pendingList.textContent = "";
     approvedList.textContent = "";
@@ -209,15 +275,19 @@ async function loadEmployees() {
     let rejectedCount = 0;
 
     if (!snapshot.exists()) {
+
       pendingList.textContent = "No employee registrations found.";
       approvedList.textContent = "No approved employees.";
       rejectedList.textContent = "No rejected employees.";
+
       return;
     }
 
     snapshot.forEach(child => {
+
       const uid = child.key;
       const employee = child.val();
+
       const status = employee.status || "pending";
       const name = employee.name || "Unknown employee";
 
@@ -230,7 +300,8 @@ async function loadEmployees() {
       nameText.textContent = "Name: " + name;
 
       const emailText = document.createElement("p");
-      emailText.textContent = "Email: " + (employee.email || "");
+      emailText.textContent =
+        "Email: " + (employee.email || "Not available");
 
       const statusText = document.createElement("p");
       statusText.textContent = "Status: " + status;
@@ -238,6 +309,7 @@ async function loadEmployees() {
       card.append(nameText, emailText, statusText);
 
       if (status === "pending") {
+
         pendingCount++;
 
         const approveBtn = document.createElement("button");
@@ -254,82 +326,124 @@ async function loadEmployees() {
         pendingList.appendChild(card);
 
       } else if (status === "approved") {
+
         approvedCount++;
         approvedList.appendChild(card);
 
       } else if (status === "rejected") {
+
         rejectedCount++;
         rejectedList.appendChild(card);
+
       }
+
     });
 
-    if (!pendingCount) pendingList.textContent = "No pending employees.";
-    if (!approvedCount) approvedList.textContent = "No approved employees.";
-    if (!rejectedCount) rejectedList.textContent = "No rejected employees.";
+    if (!pendingCount) {
+      pendingList.textContent = "No pending employees.";
+    }
 
-    showMessage("Employee list updated.");
+    if (!approvedCount) {
+      approvedList.textContent = "No approved employees.";
+    }
+
+    if (!rejectedCount) {
+      rejectedList.textContent = "No rejected employees.";
+    }
+
+    showMessage("Employee list updated successfully.");
 
   } catch (error) {
-    showMessage("Unable to load employees: " + error.message, true);
+
+    showMessage(
+      "Unable to load employees: " + error.message,
+      true
+    );
+
   }
 }
 
 // APPROVE EMPLOYEE
 
 async function approveEmployee(uid) {
+
   if (!checkAdmin()) return;
+
   if (!confirm("Approve this employee?")) return;
 
   try {
+
     const updates = {};
+
     updates["employeeProfiles/" + uid + "/status"] = "approved";
     updates["authorizedEmployees/" + uid] = true;
 
     await db.ref().update(updates);
 
-    showMessage("Employee approved.");
-    loadEmployees();
+    showMessage("Employee approved successfully.");
+
+    await loadEmployees();
 
   } catch (error) {
-    showMessage("Approval failed: " + error.message, true);
+
+    showMessage(
+      "Approval failed: " + error.message,
+      true
+    );
+
   }
 }
 
 // REJECT EMPLOYEE
 
 async function rejectEmployee(uid) {
+
   if (!checkAdmin()) return;
+
   if (!confirm("Reject this employee?")) return;
 
   try {
+
     const updates = {};
+
     updates["employeeProfiles/" + uid + "/status"] = "rejected";
     updates["authorizedEmployees/" + uid] = null;
 
     await db.ref().update(updates);
 
-    showMessage("Employee rejected.");
-    loadEmployees();
+    showMessage("Employee rejected successfully.");
+
+    await loadEmployees();
 
   } catch (error) {
-    showMessage("Rejection failed: " + error.message, true);
+
+    showMessage(
+      "Rejection failed: " + error.message,
+      true
+    );
+
   }
 }
 
-// LIVE LOCATION LISTENER
+// START LIVE GPS LISTENER
 
 function startLocationListener() {
+
   if (!checkAdmin() || locationListenerActive) return;
 
   locationListenerActive = true;
 
-  db.ref("locations").on("value", snapshot => {
+  locationListener = db.ref("locations");
+
+  locationListener.on("value", snapshot => {
+
     if (!checkAdmin() || !map) return;
 
     let count = 0;
     const activeUIDs = new Set();
 
     snapshot.forEach(child => {
+
       const uid = child.key;
       const location = child.val();
 
@@ -338,8 +452,11 @@ function startLocationListener() {
       const lat = Number(location.latitude);
       const lng = Number(location.longitude);
 
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+      if (!Number.isFinite(lat) ||
+          !Number.isFinite(lng)) return;
+
+      if (lat < -90 || lat > 90 ||
+          lng < -180 || lng > 180) return;
 
       activeUIDs.add(uid);
       count++;
@@ -347,6 +464,7 @@ function startLocationListener() {
       const name = employeeNames[uid] || "Employee";
 
       const popup = document.createElement("div");
+
       const title = document.createElement("strong");
       title.textContent = name;
 
@@ -363,78 +481,192 @@ function startLocationListener() {
       popup.append(title, time, accuracy);
 
       if (markers[uid]) {
+
         markers[uid].setLatLng([lat, lng]);
         markers[uid].setPopupContent(popup);
+
       } else {
+
         markers[uid] = L.marker([lat, lng])
           .addTo(map)
           .bindPopup(popup);
+
       }
+
     });
 
     Object.keys(markers).forEach(uid => {
+
       if (!activeUIDs.has(uid)) {
+
         map.removeLayer(markers[uid]);
         delete markers[uid];
+
       }
+
     });
 
     gpsStatus.textContent = count
       ? count + " employee location(s) received."
       : "No GPS locations received yet.";
+
   }, error => {
-    gpsStatus.textContent = "GPS data error: " + error.message;
+
+    gpsStatus.textContent =
+      "GPS data error: " + error.message;
+
   });
+
 }
 
-// LOGIN STATE
+// STOP GPS LISTENER
 
-auth.onAuthStateChanged(user => {
-  adminPanel.classList.add("hidden");
-  loginPanel.classList.add("hidden");
+function stopLocationListener() {
 
-  if (user && user.uid === ADMIN_UID) {
+  if (locationListener) {
+    locationListener.off();
+    locationListener = null;
+  }
+
+  locationListenerActive = false;
+
+  Object.values(markers).forEach(marker => {
+    if (map) map.removeLayer(marker);
+  });
+
+  markers = {};
+}
+
+// SHOW ADMIN PANEL
+
+async function openAdminPanel() {
+
+  if (!checkAdmin() || initializing) return;
+
+  initializing = true;
+
+  try {
+
     loginPanel.classList.add("hidden");
     adminPanel.classList.remove("hidden");
 
     initializeMap();
-    loadEmployees();
-    startLocationListener();
 
-    showMessage("Admin verified successfully.");
+    await loadEmployees();
 
-  } else {
-    adminPanel.classList.add("hidden");
-    loginPanel.classList.remove("hidden");
-
-    if (user) {
-      showMessage("Admin access denied. Please sign out.", true);
-    } else {
-      showMessage("Please login as Admin.");
+    if (checkAdmin()) {
+      startLocationListener();
     }
+
+  } finally {
+
+    initializing = false;
+
   }
+
+}
+
+// AUTHENTICATION
+
+loginPanel.classList.remove("hidden");
+adminPanel.classList.add("hidden");
+
+document.getElementById("loginBtn").disabled = true;
+
+// Disable persistent login and clear any restored session.
+// The login screen is shown whenever this page is opened.
+
+auth.setPersistence(
+  firebase.auth.Auth.Persistence.NONE
+).then(() => {
+
+  return auth.signOut();
+
+}).then(() => {
+
+  auth.onAuthStateChanged(async user => {
+
+    if (user && user.uid === ADMIN_UID) {
+
+      await openAdminPanel();
+
+    } else {
+
+      stopLocationListener();
+
+      adminPanel.classList.add("hidden");
+      loginPanel.classList.remove("hidden");
+
+      if (user) {
+        showMessage("Admin access denied.", true);
+      } else {
+        showMessage("Please login as Admin.");
+      }
+
+    }
+
+    document.getElementById("loginBtn").disabled = false;
+
+  });
+
+}).catch(error => {
+
+  showMessage(
+    "Authentication setup failed: " + error.message,
+    true
+  );
+
+  document.getElementById("loginBtn").disabled = false;
+
 });
 
-// LOGIN BUTTON
+// LOGIN
 
 document.getElementById("loginBtn").onclick = async () => {
+
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value;
+
+  const btn = document.getElementById("loginBtn");
 
   if (!email || !password) {
     showMessage("Enter Admin Email and Password.", true);
     return;
   }
 
+  btn.disabled = true;
+
   try {
-    if (auth.currentUser) await auth.signOut();
+
+    if (auth.currentUser) {
+      await auth.signOut();
+    }
 
     await auth.signInWithEmailAndPassword(email, password);
-    showMessage("Login successful.");
+
+    if (auth.currentUser &&
+        auth.currentUser.uid !== ADMIN_UID) {
+
+      await auth.signOut();
+
+      showMessage("This account is not authorized as Admin.", true);
+
+    } else {
+
+      showMessage("Login successful.");
+
+    }
 
   } catch (error) {
+
     showMessage(error.message, true);
+
+  } finally {
+
+    btn.disabled = false;
+
   }
+
 };
 
 // REFRESH
@@ -446,9 +678,26 @@ document.getElementById("refreshBtn").onclick = () => {
 // LOGOUT
 
 document.getElementById("logoutBtn").onclick = async () => {
-  await auth.signOut();
-  showMessage("Logged out.");
+
+  try {
+
+    stopLocationListener();
+
+    await auth.signOut();
+
+    adminPanel.classList.add("hidden");
+    loginPanel.classList.remove("hidden");
+
+    showMessage("Logged out successfully.");
+
+  } catch (error) {
+
+    showMessage(error.message, true);
+
+  }
+
 };
+
 </script>
 </body>
 </html>
