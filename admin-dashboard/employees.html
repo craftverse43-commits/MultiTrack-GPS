@@ -2,122 +2,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MultiTrack GPS - Admin Dashboard</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MultiTrack GPS Admin</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f1f5f9;
-      color: #1e293b;
-      padding: 20px;
-      margin: 0;
-    }
-
-    .container {
-      max-width: 650px;
-      margin: auto;
-    }
-
-    .panel {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      margin: 16px 0;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-
-    input {
-      box-sizing: border-box;
-      width: 100%;
-      padding: 13px;
-      margin: 8px 0;
-      border: 1px solid #cbd5e1;
-      border-radius: 7px;
-      font-size: 15px;
-    }
-
-    button {
-      padding: 12px 18px;
-      background: #1d4ed8;
-      color: white;
-      border: 0;
-      border-radius: 7px;
-      margin-top: 8px;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: 0.6;
-    }
-
-    .danger {
-      background: #64748b;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .employee {
-      padding: 12px;
-      border-bottom: 1px solid #e2e8f0;
-      overflow-wrap: anywhere;
-    }
-
-    #message {
-      margin-top: 12px;
-      overflow-wrap: anywhere;
-    }
-  </style>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+  padding: 20px;
+  margin: 0;
+}
+.container {
+  max-width: 650px;
+  margin: auto;
+}
+.panel {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 16px 0;
+  box-shadow: 0 2px 8px #00000010;
+}
+input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 13px;
+  margin: 8px 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 15px;
+}
+button {
+  padding: 12px 18px;
+  background: #1d4ed8;
+  color: white;
+  border: 0;
+  border-radius: 7px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.6; }
+.danger { background: #64748b; }
+.hidden { display: none !important; }
+.employee {
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-wrap: anywhere;
+}
+#message {
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+</style>
 </head>
 
 <body>
-
 <div class="container">
 
-  <h1>MultiTrack GPS</h1>
-  <p>Admin Employee Approval</p>
+<h1>MultiTrack GPS</h1>
+<p>Admin Employee Approval</p>
 
-  <!-- ADMIN LOGIN -->
-  <div class="panel" id="loginPanel">
-    <h2>Admin Login</h2>
+<div class="panel" id="loginPanel">
+  <h2>Admin Login</h2>
+  <input id="email" type="email" placeholder="Admin Email">
+  <input id="password" type="password" placeholder="Admin Password">
+  <button id="loginBtn">Login</button>
+</div>
 
-    <input id="email" type="email"
-      placeholder="Admin Email">
+<div class="panel hidden" id="adminPanel">
+  <h2>Admin Dashboard</h2>
 
-    <input id="password" type="password"
-      placeholder="Admin Password">
+  <h3>Authorize Employee</h3>
+  <input id="employeeUid" placeholder="Employee Firebase UID">
+  <button id="approveBtn">Approve Employee</button>
 
-    <button id="loginBtn">Login</button>
-  </div>
+  <h3>Authorized Employees</h3>
+  <div id="employeeList">Loading...</div>
 
-  <!-- ADMIN DASHBOARD -->
-  <div class="panel hidden" id="adminPanel">
+  <button class="danger" id="logoutBtn">Logout</button>
+</div>
 
-    <h2>Admin Dashboard</h2>
-
-    <h3>Authorize Employee</h3>
-
-    <p>Enter the Firebase Authentication UID of an employee.</p>
-
-    <input id="employeeUid"
-      placeholder="Employee Firebase UID">
-
-    <button id="approveBtn">Approve Employee</button>
-
-    <h3>Authorized Employees</h3>
-
-    <div id="employeeList">Loading...</div>
-
-    <button class="danger" id="logoutBtn">
-      Logout
-    </button>
-
-  </div>
-
-  <p id="message"></p>
+<p id="message"></p>
 
 </div>
 
@@ -149,50 +116,47 @@ const db = firebase.database();
 
 const ADMIN_UID = "Mc3aac9Pijcu3M0vDDAxGQ59FM32";
 
-// HTML ELEMENTS
+// ELEMENTS
 
-const message = document.getElementById("message");
 const loginPanel = document.getElementById("loginPanel");
 const adminPanel = document.getElementById("adminPanel");
+const message = document.getElementById("message");
 
 function showMessage(text, error = false) {
   message.textContent = text;
   message.style.color = error ? "#dc2626" : "#15803d";
 }
 
-// CHECK LOGIN STATUS
+// CHECK AUTHENTICATION
 
 auth.onAuthStateChanged(user => {
 
-  if (user) {
+  if (!user) {
+    adminPanel.classList.add("hidden");
+    loginPanel.classList.remove("hidden");
+    showMessage("Please login as Admin.");
+    return;
+  }
 
-    if (user.uid.trim() === ADMIN_UID) {
+  // SHOW ACTUAL LOGGED-IN UID FOR DIAGNOSIS
+  alert("LOGIN UID:\n" + user.uid);
 
-      loginPanel.classList.add("hidden");
-      adminPanel.classList.remove("hidden");
+  // COMPARE UID
+  if (user.uid.trim() === ADMIN_UID.trim()) {
 
-      showMessage("ADMIN VERIFIED SUCCESSFULLY!");
+    loginPanel.classList.add("hidden");
+    adminPanel.classList.remove("hidden");
 
-      loadEmployees();
+    showMessage("ADMIN VERIFIED SUCCESSFULLY!");
 
-    } else {
-
-      adminPanel.classList.add("hidden");
-      loginPanel.classList.remove("hidden");
-
-      showMessage(
-        "UID MISMATCH. This account is not Admin.",
-        true
-      );
-
-    }
+    loadEmployees();
 
   } else {
 
     adminPanel.classList.add("hidden");
     loginPanel.classList.remove("hidden");
 
-    showMessage("Please login as Admin.");
+    showMessage("UID MISMATCH. Admin access denied.", true);
 
   }
 
@@ -204,29 +168,22 @@ document.getElementById("loginBtn").onclick = async () => {
 
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value;
+  const btn = document.getElementById("loginBtn");
 
   if (!email || !password) {
     showMessage("Enter Email and Password.", true);
     return;
   }
 
-  const btn = document.getElementById("loginBtn");
   btn.disabled = true;
 
   try {
-
     await auth.signInWithEmailAndPassword(email, password);
-
-    showMessage("Login successful. Verifying Admin...");
-
+    showMessage("Login successful. Checking Admin UID...");
   } catch (error) {
-
     showMessage(error.message, true);
-
   } finally {
-
     btn.disabled = false;
-
   }
 
 };
@@ -238,7 +195,7 @@ document.getElementById("approveBtn").onclick = async () => {
   const uid = document.getElementById("employeeUid").value.trim();
 
   if (!uid) {
-    showMessage("Enter an employee UID.", true);
+    showMessage("Enter Employee UID.", true);
     return;
   }
 
@@ -253,23 +210,19 @@ document.getElementById("approveBtn").onclick = async () => {
     loadEmployees();
 
   } catch (error) {
-
     showMessage(error.message, true);
-
   }
 
 };
 
-// LOAD AUTHORIZED EMPLOYEES
+// LOAD EMPLOYEES
 
 function loadEmployees() {
 
   const list = document.getElementById("employeeList");
-
   list.textContent = "Loading employees...";
 
   db.ref("authorizedEmployees").once("value")
-
     .then(snapshot => {
 
       list.textContent = "";
@@ -282,24 +235,17 @@ function loadEmployees() {
       snapshot.forEach(child => {
 
         const item = document.createElement("div");
-
         item.className = "employee";
-
-        item.textContent =
-          "UID: " + child.key + " — Authorized";
+        item.textContent = "UID: " + child.key + " — Authorized";
 
         list.appendChild(item);
 
       });
 
     })
-
     .catch(error => {
-
       list.textContent = "Unable to load employees.";
-
       showMessage(error.message, true);
-
     });
 
 }
@@ -309,20 +255,14 @@ function loadEmployees() {
 document.getElementById("logoutBtn").onclick = async () => {
 
   try {
-
     await auth.signOut();
-
     showMessage("Logged out successfully.");
-
   } catch (error) {
-
     showMessage(error.message, true);
-
   }
 
 };
 
 </script>
-
 </body>
 </html>
