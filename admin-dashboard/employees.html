@@ -3,27 +3,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MultiTrack GPS - Employees</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MultiTrack GPS - Employee Approval</title>
   <style>
     body {
-      margin: 0;
-      padding: 20px;
       font-family: Arial, sans-serif;
-      background: #f3f5f9;
+      background: #f1f5f9;
       color: #1e293b;
+      padding: 20px;
+      margin: 0;
     }
-    .container {
-      max-width: 900px;
-      margin: auto;
-    }
-    h1 { color: #172554; }
+    .container { max-width: 650px; margin: auto; }
     .panel {
       background: white;
       padding: 20px;
       border-radius: 12px;
-      margin-top: 20px;
-      box-shadow: 0 2px 10px #00000010;
+      margin: 16px 0;
     }
     input {
       box-sizing: border-box;
@@ -32,40 +27,149 @@
       margin: 8px 0;
       border: 1px solid #cbd5e1;
       border-radius: 7px;
-      font-size: 16px;
+      font-size: 15px;
     }
     button {
       padding: 12px 18px;
-      margin-top: 10px;
-      border: 0;
-      border-radius: 7px;
       background: #1d4ed8;
       color: white;
-      font-size: 15px;
+      border: 0;
+      border-radius: 7px;
+      margin-top: 8px;
+      cursor: pointer;
     }
-    .note { color: #64748b; line-height: 1.5; }
+    .danger { background: #64748b; }
+    .hidden { display: none; }
+    .employee {
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      overflow-wrap: anywhere;
+    }
+    #message { margin-top: 12px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>MultiTrack GPS</h1>
-    <p>Employee Management</p>
+<div class="container">
+  <h1>MultiTrack GPS</h1>
+  <p>Admin Employee Approval</p>
 
-    <div class="panel">
-      <h2>Add Employee</h2>
-      <input type="text" placeholder="Employee Full Name">
-      <input type="email" placeholder="Employee Email">
-      <button type="button">Add Employee</button>
-      <p class="note">
-        Employee registration and approval will be connected to Firebase.
-      </p>
-    </div>
-
-    <div class="panel">
-      <h2>Employee List</h2>
-      <p class="note">No employee records loaded yet.</p>
-    </div>
+  <div class="panel" id="loginPanel">
+    <h2>Admin Login</h2>
+    <input id="email" type="email" placeholder="Admin Email">
+    <input id="password" type="password" placeholder="Admin Password">
+    <button id="loginBtn">Login</button>
   </div>
+
+  <div class="panel hidden" id="adminPanel">
+    <h2>Authorize Employee</h2>
+    <p>Enter the Firebase Authentication UID of an employee.</p>
+    <input id="employeeUid" placeholder="Employee Firebase UID">
+    <button id="approveBtn">Approve Employee</button>
+
+    <h2>Authorized Employees</h2>
+    <div id="employeeList">Loading...</div>
+    <button class="danger" id="logoutBtn">Logout</button>
+  </div>
+
+  <p id="message"></p>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+<script>
+  // Replace these values with your Firebase Web App config.
+  const firebaseConfig = {
+    apiKey: "AIzaSyDQAe8VJIfwoxykr45mPoNXGFkMnG3Q8M0",
+    authDomain: "multitrack-gps.firebaseapp.com",
+    databaseURL: "https://multitrack-gps-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "multitrack-gps",
+    storageBucket: "multitrack-gps.firebasestorage.app",
+    messagingSenderId: "646292574395",
+    appId: "1:646292574395:web:4d97b3aced2aad3fd1199e",
+    measurementId: "G-FVWTQ5HRRG"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  const message = document.getElementById("message");
+  const loginPanel = document.getElementById("loginPanel");
+  const adminPanel = document.getElementById("adminPanel");
+
+  function showMessage(text, error = false) {
+    message.textContent = text;
+    message.style.color = error ? "#dc2626" : "#15803d";
+  }
+
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      loginPanel.classList.add("hidden");
+      adminPanel.classList.remove("hidden");
+      loadEmployees();
+    } else {
+      loginPanel.classList.remove("hidden");
+      adminPanel.classList.add("hidden");
+    }
+  });
+
+  document.getElementById("loginBtn").onclick = async () => {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+      showMessage("Admin login successful.");
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  };
+
+  document.getElementById("approveBtn").onclick = async () => {
+    const uid = document.getElementById("employeeUid").value.trim();
+
+    if (!uid) {
+      showMessage("Enter an employee UID.", true);
+      return;
+    }
+
+    try {
+      await db.ref("authorizedEmployees/" + uid).set(true);
+      document.getElementById("employeeUid").value = "";
+      showMessage("Employee authorized successfully.");
+      loadEmployees();
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  };
+
+  function loadEmployees() {
+    db.ref("authorizedEmployees").once("value")
+      .then(snapshot => {
+        const list = document.getElementById("employeeList");
+        list.textContent = "";
+
+        if (!snapshot.exists()) {
+          list.textContent = "No authorized employees yet.";
+          return;
+        }
+
+        snapshot.forEach(child => {
+          const item = document.createElement("div");
+          item.className = "employee";
+          item.textContent = "UID: " + child.key + " — Authorized";
+          list.appendChild(item);
+        });
+      })
+      .catch(error => showMessage(error.message, true));
+  }
+
+  document.getElementById("logoutBtn").onclick = () => {
+    auth.signOut();
+  };
+</script>
 </body>
 </html>
-
