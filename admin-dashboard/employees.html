@@ -59,6 +59,7 @@ button:disabled { opacity: 0.6; }
 </head>
 
 <body>
+
 <div class="container">
 
 <h1>MultiTrack GPS</h1>
@@ -66,22 +67,29 @@ button:disabled { opacity: 0.6; }
 
 <div class="panel" id="loginPanel">
   <h2>Admin Login</h2>
+
   <input id="email" type="email" placeholder="Admin Email">
   <input id="password" type="password" placeholder="Admin Password">
+
   <button id="loginBtn">Login</button>
 </div>
 
 <div class="panel hidden" id="adminPanel">
+
   <h2>Admin Dashboard</h2>
 
   <h3>Authorize Employee</h3>
+
   <input id="employeeUid" placeholder="Employee Firebase UID">
+
   <button id="approveBtn">Approve Employee</button>
 
   <h3>Authorized Employees</h3>
+
   <div id="employeeList">Loading...</div>
 
   <button class="danger" id="logoutBtn">Logout</button>
+
 </div>
 
 <p id="message"></p>
@@ -116,7 +124,7 @@ const db = firebase.database();
 
 const ADMIN_UID = "Mc3aac9Pijcu3M0vDDAxGQ59FM32";
 
-// ELEMENTS
+// HTML ELEMENTS
 
 const loginPanel = document.getElementById("loginPanel");
 const adminPanel = document.getElementById("adminPanel");
@@ -127,27 +135,21 @@ function showMessage(text, error = false) {
   message.style.color = error ? "#dc2626" : "#15803d";
 }
 
-// CHECK AUTHENTICATION
+// HIDE ADMIN PANEL UNTIL AUTHENTICATION IS CHECKED
+
+adminPanel.classList.add("hidden");
+loginPanel.classList.add("hidden");
+
+// AUTHENTICATION CHECK
 
 auth.onAuthStateChanged(user => {
 
-  if (!user) {
-    adminPanel.classList.add("hidden");
-    loginPanel.classList.remove("hidden");
-    showMessage("Please login as Admin.");
-    return;
-  }
-
-  // SHOW ACTUAL LOGGED-IN UID FOR DIAGNOSIS
-  alert("LOGIN UID:\n" + user.uid);
-
-  // COMPARE UID
-  if (user.uid.trim() === ADMIN_UID.trim()) {
+  if (user && user.uid === ADMIN_UID) {
 
     loginPanel.classList.add("hidden");
     adminPanel.classList.remove("hidden");
 
-    showMessage("ADMIN VERIFIED SUCCESSFULLY!");
+    showMessage("Admin verified successfully.");
 
     loadEmployees();
 
@@ -156,7 +158,11 @@ auth.onAuthStateChanged(user => {
     adminPanel.classList.add("hidden");
     loginPanel.classList.remove("hidden");
 
-    showMessage("UID MISMATCH. Admin access denied.", true);
+    if (user) {
+      showMessage("Admin access denied.", true);
+    } else {
+      showMessage("Please login as Admin.");
+    }
 
   }
 
@@ -178,12 +184,19 @@ document.getElementById("loginBtn").onclick = async () => {
   btn.disabled = true;
 
   try {
+
     await auth.signInWithEmailAndPassword(email, password);
-    showMessage("Login successful. Checking Admin UID...");
+
+    showMessage("Login successful.");
+
   } catch (error) {
+
     showMessage(error.message, true);
+
   } finally {
+
     btn.disabled = false;
+
   }
 
 };
@@ -199,6 +212,11 @@ document.getElementById("approveBtn").onclick = async () => {
     return;
   }
 
+  if (!auth.currentUser || auth.currentUser.uid !== ADMIN_UID) {
+    showMessage("Admin authorization required.", true);
+    return;
+  }
+
   try {
 
     await db.ref("authorizedEmployees/" + uid).set(true);
@@ -210,7 +228,9 @@ document.getElementById("approveBtn").onclick = async () => {
     loadEmployees();
 
   } catch (error) {
+
     showMessage(error.message, true);
+
   }
 
 };
@@ -220,9 +240,11 @@ document.getElementById("approveBtn").onclick = async () => {
 function loadEmployees() {
 
   const list = document.getElementById("employeeList");
+
   list.textContent = "Loading employees...";
 
   db.ref("authorizedEmployees").once("value")
+
     .then(snapshot => {
 
       list.textContent = "";
@@ -235,7 +257,9 @@ function loadEmployees() {
       snapshot.forEach(child => {
 
         const item = document.createElement("div");
+
         item.className = "employee";
+
         item.textContent = "UID: " + child.key + " — Authorized";
 
         list.appendChild(item);
@@ -243,9 +267,13 @@ function loadEmployees() {
       });
 
     })
+
     .catch(error => {
+
       list.textContent = "Unable to load employees.";
+
       showMessage(error.message, true);
+
     });
 
 }
@@ -255,14 +283,20 @@ function loadEmployees() {
 document.getElementById("logoutBtn").onclick = async () => {
 
   try {
+
     await auth.signOut();
+
     showMessage("Logged out successfully.");
+
   } catch (error) {
+
     showMessage(error.message, true);
+
   }
 
 };
 
 </script>
+
 </body>
 </html>
