@@ -1,1 +1,104 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MultiTrack GPS - Employee Registration</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f1f5f9;
+  padding: 20px;
+}
+.container {
+  max-width: 420px;
+  margin: 40px auto;
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+}
+input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 13px;
+  margin: 9px 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+}
+button {
+  width: 100%;
+  padding: 13px;
+  background: #1d4ed8;
+  color: white;
+  border: 0;
+  border-radius: 7px;
+  margin-top: 12px;
+}
+#message { overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<div class="container">
+<h2>MultiTrack GPS</h2>
+<h3>Employee Registration</h3>
+
+<input id="name" placeholder="Full Name">
+<input id="email" type="email" placeholder="Email Address">
+<input id="password" type="password" placeholder="Password (at least 6 characters)">
+
+<button id="registerBtn">Create Employee Account</button>
+
+<p id="message"></p>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDQAe8VJIfwoxykr45mPoNXGFkMnG3Q8M0",
+  authDomain: "multitrack-gps.firebaseapp.com",
+  databaseURL: "https://multitrack-gps-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "multitrack-gps",
+  storageBucket: "multitrack-gps.firebasestorage.app",
+  messagingSenderId: "646292574395",
+  appId: "1:646292574395:web:4d97b3aced2aad3fd1199e"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+document.getElementById("registerBtn").onclick = async () => {
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const message = document.getElementById("message");
+
+  if (!name || !email || password.length < 6) {
+    message.textContent = "Enter your name, valid email and password (6+ characters).";
+    return;
+  }
+
+  try {
+    const result = await auth.createUserWithEmailAndPassword(email, password);
+    await db.ref("employeeProfiles/" + result.user.uid).set({
+      name: name,
+      email: email,
+      status: "pending",
+      createdAt: Date.now()
+    });
+
+    message.textContent = "Registration successful! Waiting for Admin approval.";
+    document.getElementById("registerBtn").disabled = true;
+
+  } catch (error) {
+    message.textContent = error.message;
+  }
+};
+</script>
+</body>
+</html>
+
