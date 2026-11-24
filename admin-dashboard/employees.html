@@ -4,7 +4,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MultiTrack GPS - Employee Management</title>
+<title>MultiTrack GPS Admin</title>
+
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
 * { box-sizing: border-box; }
@@ -17,14 +20,11 @@ body {
   margin: 0;
 }
 
-.container {
-  max-width: 750px;
-  margin: auto;
-}
+.container { max-width: 850px; margin: auto; }
 
 .panel {
   background: white;
-  padding: 20px;
+  padding: 18px;
   border-radius: 12px;
   margin: 16px 0;
   box-shadow: 0 2px 8px #00000010;
@@ -51,8 +51,6 @@ button {
   cursor: pointer;
 }
 
-button:disabled { opacity: .6; }
-
 .approve { background: #15803d; }
 .reject { background: #dc2626; }
 .logout { background: #64748b; }
@@ -66,66 +64,49 @@ button:disabled { opacity: .6; }
   overflow-wrap: anywhere;
 }
 
-.employee p {
-  margin: 7px 0;
-}
-
-.status {
-  font-weight: bold;
-  text-transform: capitalize;
-}
-
-#message {
-  padding: 10px 0;
-  overflow-wrap: anywhere;
-}
+.employee p { margin: 7px 0; }
 
 .section-title {
   margin-top: 25px;
   border-bottom: 1px solid #e2e8f0;
   padding-bottom: 8px;
 }
+
+#map {
+  width: 100%;
+  height: 420px;
+  border-radius: 10px;
+  background: #e2e8f0;
+}
+
+#message {
+  padding: 10px 0;
+  overflow-wrap: anywhere;
+}
 </style>
 </head>
 
 <body>
-
 <div class="container">
 
 <h1>MultiTrack GPS</h1>
-<p>Admin Employee Management</p>
-
-<!-- LOGIN -->
+<p>Admin Employee Management & Live GPS Map</p>
 
 <div class="panel" id="loginPanel">
-
   <h2>Admin Login</h2>
-
-  <input
-    id="email"
-    type="email"
-    placeholder="Admin Email"
-  >
-
-  <input
-    id="password"
-    type="password"
-    placeholder="Admin Password"
-  >
-
+  <input id="email" type="email" placeholder="Admin Email">
+  <input id="password" type="password" placeholder="Admin Password">
   <button id="loginBtn">Login</button>
-
 </div>
-
-<!-- ADMIN DASHBOARD -->
 
 <div class="panel hidden" id="adminPanel">
 
-  <h2>Admin Dashboard</h2>
+  <h2>Live GPS Map</h2>
+  <p id="gpsStatus">Waiting for GPS locations...</p>
+  <div id="map"></div>
 
-  <button class="refresh" id="refreshBtn">
-    Refresh Employees
-  </button>
+  <h2>Employee Management</h2>
+  <button class="refresh" id="refreshBtn">Refresh Employees</button>
 
   <h3 class="section-title">Pending Employees</h3>
   <div id="pendingList">Loading...</div>
@@ -136,10 +117,7 @@ button:disabled { opacity: .6; }
   <h3 class="section-title">Rejected Employees</h3>
   <div id="rejectedList">Loading...</div>
 
-  <button class="logout" id="logoutBtn">
-    Logout
-  </button>
-
+  <button class="logout" id="logoutBtn">Logout</button>
 </div>
 
 <p id="message"></p>
@@ -149,11 +127,9 @@ button:disabled { opacity: .6; }
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-
-// FIREBASE CONFIGURATION
-
 const firebaseConfig = {
   apiKey: "AIzaSyDQAe8VJIfwoxykr45mPoNXGFkMnG3Q8M0",
   authDomain: "multitrack-gps.firebaseapp.com",
@@ -170,11 +146,7 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
 
-// ADMIN UID
-
 const ADMIN_UID = "Mc3aac9Pijcu3M0vDDAxGQ59FM32";
-
-// ELEMENTS
 
 const loginPanel = document.getElementById("loginPanel");
 const adminPanel = document.getElementById("adminPanel");
@@ -183,269 +155,287 @@ const message = document.getElementById("message");
 const pendingList = document.getElementById("pendingList");
 const approvedList = document.getElementById("approvedList");
 const rejectedList = document.getElementById("rejectedList");
+const gpsStatus = document.getElementById("gpsStatus");
 
-let loadingEmployees = false;
-
-// MESSAGE
+let map = null;
+let markers = {};
+let employeeNames = {};
+let locationListenerActive = false;
 
 function showMessage(text, error = false) {
   message.textContent = text;
   message.style.color = error ? "#dc2626" : "#15803d";
 }
 
-// AUTHENTICATION
+function checkAdmin() {
+  return auth.currentUser &&
+         auth.currentUser.uid === ADMIN_UID;
+}
 
-adminPanel.classList.add("hidden");
-loginPanel.classList.add("hidden");
+// MAP INITIALIZATION
 
-auth.onAuthStateChanged(user => {
-
-  if (user && user.uid === ADMIN_UID) {
-
-    loginPanel.classList.add("hidden");
-    adminPanel.classList.remove("hidden");
-
-    showMessage("Admin verified successfully.");
-
-    loadEmployees();
-
-  } else {
-
-    adminPanel.classList.add("hidden");
-    loginPanel.classList.remove("hidden");
-
-    if (user) {
-      showMessage("Admin access denied.", true);
-    } else {
-      showMessage("Please login as Admin.");
-    }
-
-  }
-
-});
-
-// LOGIN
-
-document.getElementById("loginBtn").onclick = async () => {
-
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value;
-  const btn = document.getElementById("loginBtn");
-
-  if (!email || !password) {
-    showMessage("Enter Admin Email and Password.", true);
+function initializeMap() {
+  if (map) {
+    setTimeout(() => map.invalidateSize(), 200);
     return;
   }
 
-  btn.disabled = true;
+  map = L.map("map").setView([7.8731, 80.7718], 7);
 
-  try {
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+    maxZoom: 19
+  }).addTo(map);
 
-    await auth.signInWithEmailAndPassword(email, password);
-
-    showMessage("Login successful.");
-
-  } catch (error) {
-
-    showMessage(error.message, true);
-
-  } finally {
-
-    btn.disabled = false;
-
-  }
-
-};
-
-// CHECK ADMIN BEFORE DATABASE ACTIONS
-
-function checkAdmin() {
-  return auth.currentUser &&
-    auth.currentUser.uid === ADMIN_UID;
+  setTimeout(() => map.invalidateSize(), 300);
 }
 
 // LOAD EMPLOYEES
 
 async function loadEmployees() {
-
-  if (!checkAdmin() || loadingEmployees) return;
-
-  loadingEmployees = true;
-
-  pendingList.textContent = "Loading...";
-  approvedList.textContent = "Loading...";
-  rejectedList.textContent = "Loading...";
+  if (!checkAdmin()) return;
 
   try {
-
     const snapshot = await db.ref("employeeProfiles").once("value");
 
     pendingList.textContent = "";
     approvedList.textContent = "";
     rejectedList.textContent = "";
 
-    if (!snapshot.exists()) {
-
-      pendingList.textContent = "No employee registrations found.";
-      approvedList.textContent = "No approved employees.";
-      rejectedList.textContent = "No rejected employees.";
-
-      return;
-
-    }
+    employeeNames = {};
 
     let pendingCount = 0;
     let approvedCount = 0;
     let rejectedCount = 0;
 
-    snapshot.forEach(child => {
+    if (!snapshot.exists()) {
+      pendingList.textContent = "No employee registrations found.";
+      approvedList.textContent = "No approved employees.";
+      rejectedList.textContent = "No rejected employees.";
+      return;
+    }
 
+    snapshot.forEach(child => {
       const uid = child.key;
       const employee = child.val();
-
       const status = employee.status || "pending";
+      const name = employee.name || "Unknown employee";
+
+      employeeNames[uid] = name;
 
       const card = document.createElement("div");
       card.className = "employee";
 
-      const name = document.createElement("p");
-      name.textContent = "Name: " + (employee.name || "Not available");
+      const nameText = document.createElement("p");
+      nameText.textContent = "Name: " + name;
 
-      const email = document.createElement("p");
-      email.textContent = "Email: " + (employee.email || "Not available");
+      const emailText = document.createElement("p");
+      emailText.textContent = "Email: " + (employee.email || "");
 
       const statusText = document.createElement("p");
-      statusText.className = "status";
       statusText.textContent = "Status: " + status;
 
-      const uidText = document.createElement("p");
-      uidText.textContent = "UID: " + uid;
-
-      card.append(name, email, statusText, uidText);
+      card.append(nameText, emailText, statusText);
 
       if (status === "pending") {
-
         pendingCount++;
 
         const approveBtn = document.createElement("button");
         approveBtn.className = "approve";
         approveBtn.textContent = "Approve";
-
         approveBtn.onclick = () => approveEmployee(uid);
 
         const rejectBtn = document.createElement("button");
         rejectBtn.className = "reject";
         rejectBtn.textContent = "Reject";
-
         rejectBtn.onclick = () => rejectEmployee(uid);
 
         card.append(approveBtn, rejectBtn);
-
         pendingList.appendChild(card);
 
       } else if (status === "approved") {
-
         approvedCount++;
         approvedList.appendChild(card);
 
       } else if (status === "rejected") {
-
         rejectedCount++;
         rejectedList.appendChild(card);
-
       }
-
     });
 
-    if (!pendingCount) {
-      pendingList.textContent = "No pending employees.";
-    }
+    if (!pendingCount) pendingList.textContent = "No pending employees.";
+    if (!approvedCount) approvedList.textContent = "No approved employees.";
+    if (!rejectedCount) rejectedList.textContent = "No rejected employees.";
 
-    if (!approvedCount) {
-      approvedList.textContent = "No approved employees.";
-    }
-
-    if (!rejectedCount) {
-      rejectedList.textContent = "No rejected employees.";
-    }
-
-    showMessage("Employee list updated successfully.");
+    showMessage("Employee list updated.");
 
   } catch (error) {
-
     showMessage("Unable to load employees: " + error.message, true);
-
-  } finally {
-
-    loadingEmployees = false;
-
   }
-
 }
 
 // APPROVE EMPLOYEE
 
 async function approveEmployee(uid) {
-
-  if (!checkAdmin()) {
-    showMessage("Admin authorization required.", true);
-    return;
-  }
-
+  if (!checkAdmin()) return;
   if (!confirm("Approve this employee?")) return;
 
   try {
-
     const updates = {};
-
     updates["employeeProfiles/" + uid + "/status"] = "approved";
     updates["authorizedEmployees/" + uid] = true;
 
     await db.ref().update(updates);
 
-    showMessage("Employee approved successfully.");
-
+    showMessage("Employee approved.");
     loadEmployees();
 
   } catch (error) {
-
     showMessage("Approval failed: " + error.message, true);
-
   }
-
 }
 
 // REJECT EMPLOYEE
 
 async function rejectEmployee(uid) {
-
-  if (!checkAdmin()) {
-    showMessage("Admin authorization required.", true);
-    return;
-  }
-
+  if (!checkAdmin()) return;
   if (!confirm("Reject this employee?")) return;
 
   try {
-
     const updates = {};
-
     updates["employeeProfiles/" + uid + "/status"] = "rejected";
     updates["authorizedEmployees/" + uid] = null;
 
     await db.ref().update(updates);
 
-    showMessage("Employee rejected successfully.");
-
+    showMessage("Employee rejected.");
     loadEmployees();
 
   } catch (error) {
-
     showMessage("Rejection failed: " + error.message, true);
+  }
+}
 
+// LIVE LOCATION LISTENER
+
+function startLocationListener() {
+  if (!checkAdmin() || locationListenerActive) return;
+
+  locationListenerActive = true;
+
+  db.ref("locations").on("value", snapshot => {
+    if (!checkAdmin() || !map) return;
+
+    let count = 0;
+    const activeUIDs = new Set();
+
+    snapshot.forEach(child => {
+      const uid = child.key;
+      const location = child.val();
+
+      if (!location) return;
+
+      const lat = Number(location.latitude);
+      const lng = Number(location.longitude);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+
+      activeUIDs.add(uid);
+      count++;
+
+      const name = employeeNames[uid] || "Employee";
+
+      const popup = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = name;
+
+      const time = document.createElement("p");
+      time.textContent = "Last update: " +
+        (location.timestamp
+          ? new Date(Number(location.timestamp)).toLocaleString()
+          : "Unknown");
+
+      const accuracy = document.createElement("p");
+      accuracy.textContent = "Accuracy: " +
+        (location.accuracy ?? "Unknown") + " m";
+
+      popup.append(title, time, accuracy);
+
+      if (markers[uid]) {
+        markers[uid].setLatLng([lat, lng]);
+        markers[uid].setPopupContent(popup);
+      } else {
+        markers[uid] = L.marker([lat, lng])
+          .addTo(map)
+          .bindPopup(popup);
+      }
+    });
+
+    Object.keys(markers).forEach(uid => {
+      if (!activeUIDs.has(uid)) {
+        map.removeLayer(markers[uid]);
+        delete markers[uid];
+      }
+    });
+
+    gpsStatus.textContent = count
+      ? count + " employee location(s) received."
+      : "No GPS locations received yet.";
+  }, error => {
+    gpsStatus.textContent = "GPS data error: " + error.message;
+  });
+}
+
+// LOGIN STATE
+
+auth.onAuthStateChanged(user => {
+  adminPanel.classList.add("hidden");
+  loginPanel.classList.add("hidden");
+
+  if (user && user.uid === ADMIN_UID) {
+    loginPanel.classList.add("hidden");
+    adminPanel.classList.remove("hidden");
+
+    initializeMap();
+    loadEmployees();
+    startLocationListener();
+
+    showMessage("Admin verified successfully.");
+
+  } else {
+    adminPanel.classList.add("hidden");
+    loginPanel.classList.remove("hidden");
+
+    if (user) {
+      showMessage("Admin access denied. Please sign out.", true);
+    } else {
+      showMessage("Please login as Admin.");
+    }
+  }
+});
+
+// LOGIN BUTTON
+
+document.getElementById("loginBtn").onclick = async () => {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  if (!email || !password) {
+    showMessage("Enter Admin Email and Password.", true);
+    return;
   }
 
-}
+  try {
+    if (auth.currentUser) await auth.signOut();
+
+    await auth.signInWithEmailAndPassword(email, password);
+    showMessage("Login successful.");
+
+  } catch (error) {
+    showMessage(error.message, true);
+  }
+};
 
 // REFRESH
 
@@ -456,22 +446,9 @@ document.getElementById("refreshBtn").onclick = () => {
 // LOGOUT
 
 document.getElementById("logoutBtn").onclick = async () => {
-
-  try {
-
-    await auth.signOut();
-
-    showMessage("Logged out successfully.");
-
-  } catch (error) {
-
-    showMessage(error.message, true);
-
-  }
-
+  await auth.signOut();
+  showMessage("Logged out.");
 };
-
 </script>
-
 </body>
 </html>
