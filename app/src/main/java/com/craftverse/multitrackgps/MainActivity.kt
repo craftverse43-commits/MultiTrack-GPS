@@ -47,8 +47,14 @@ class MainActivity : ComponentActivity() {
         val stopButton = Button(this).apply {
             text = "Stop GPS Tracking"
             setOnClickListener {
-                stopService(Intent(this@MainActivity, LocationService::class.java))
-                Toast.makeText(this@MainActivity, "Tracking stopped", Toast.LENGTH_SHORT).show()
+                stopService(
+                    Intent(this@MainActivity, LocationService::class.java)
+                )
+                Toast.makeText(
+                    this@MainActivity,
+                    "Tracking stopped",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
 
@@ -61,21 +67,31 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestLocationPermission() {
-        val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
+
+        val permissions = mutableListOf<String>()
+
+        permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
 
         if (Build.VERSION.SDK_INT >= 33) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        val missing = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
+        val missing: Array<String> = permissions
+            .filter { permission ->
+                ContextCompat.checkSelfPermission(
+                    this,
+                    permission
+                ) != PackageManager.PERMISSION_GRANTED
+            }
+            .toTypedArray()
 
         if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), requestCode)
+            ActivityCompat.requestPermissions(
+                this,
+                missing,
+                requestCode
+            )
         } else {
             startTrackingService()
         }
@@ -86,21 +102,56 @@ class MainActivity : ComponentActivity() {
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
 
         if (requestCode == this.requestCode) {
-            if (grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+            val locationGranted =
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+            val notificationGranted =
+                Build.VERSION.SDK_INT < 33 ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+
+            if (locationGranted && notificationGranted) {
                 startTrackingService()
             } else {
-                Toast.makeText(this, "Location permission is required", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "Location and notification permissions are required.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
 
     private fun startTrackingService() {
-        val intent = Intent(this, LocationService::class.java)
+
+        val intent = Intent(
+            this,
+            LocationService::class.java
+        )
+
         ContextCompat.startForegroundService(this, intent)
-        Toast.makeText(this, "GPS tracking started", Toast.LENGTH_SHORT).show()
+
+        Toast.makeText(
+            this,
+            "GPS tracking started",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 }
