@@ -47,9 +47,7 @@ class MainActivity : ComponentActivity() {
         val stopButton = Button(this).apply {
             text = "Stop GPS Tracking"
             setOnClickListener {
-                stopService(
-                    Intent(this@MainActivity, LocationService::class.java)
-                )
+                stopService(Intent(this@MainActivity, LocationService::class.java))
                 Toast.makeText(
                     this@MainActivity,
                     "Tracking stopped",
@@ -78,10 +76,10 @@ class MainActivity : ComponentActivity() {
         }
 
         val missing: Array<String> = permissions
-            .filter { permission ->
+            .filter {
                 ContextCompat.checkSelfPermission(
                     this,
-                    permission
+                    it
                 ) != PackageManager.PERMISSION_GRANTED
             }
             .toTypedArray()
@@ -140,12 +138,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startTrackingService() {
-
-        val intent = Intent(
-            this,
-            LocationService::class.java
-        )
-
+        val intent = Intent(this, LocationService::class.java)
         ContextCompat.startForegroundService(this, intent)
 
         Toast.makeText(
