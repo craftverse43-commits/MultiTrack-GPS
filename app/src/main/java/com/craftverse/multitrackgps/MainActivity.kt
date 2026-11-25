@@ -11,12 +11,43 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.core.app.ActivityCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
 
-    private val requestCode = 1001
+    private val permissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { results ->
+
+            val locationGranted =
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+            val notificationGranted =
+                Build.VERSION.SDK_INT < 33 ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+
+            if (locationGranted && notificationGranted) {
+                startTrackingService()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Required permissions were not granted",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +78,10 @@ class MainActivity : ComponentActivity() {
         val stopButton = Button(this).apply {
             text = "Stop GPS Tracking"
             setOnClickListener {
-                stopService(Intent(this@MainActivity, LocationService::class.java))
+                stopService(
+                    Intent(this@MainActivity, LocationService::class.java)
+                )
+
                 Toast.makeText(
                     this@MainActivity,
                     "Tracking stopped",
@@ -66,80 +100,42 @@ class MainActivity : ComponentActivity() {
 
     private fun requestLocationPermission() {
 
-        val permissions = mutableListOf<String>()
-
-        permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
 
         if (Build.VERSION.SDK_INT >= 33) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        val missing: Array<String> = permissions
-            .filter {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    it
-                ) != PackageManager.PERMISSION_GRANTED
-            }
-            .toTypedArray()
-
-        if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(
+        val missingPermissions = permissions.filter { permission ->
+            ContextCompat.checkSelfPermission(
                 this,
-                missing,
-                requestCode
-            )
-        } else {
-            startTrackingService()
+                permission
+            ) != PackageManager.PERMISSION_GRANTED
         }
-    }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults
-        )
-
-        if (requestCode == this.requestCode) {
-
-            val locationGranted =
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-
-            val notificationGranted =
-                Build.VERSION.SDK_INT < 33 ||
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-
-            if (locationGranted && notificationGranted) {
-                startTrackingService()
-            } else {
-                Toast.makeText(
-                    this,
-                    "Location and notification permissions are required.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+        if (missingPermissions.isEmpty()) {
+            startTrackingService()
+        } else {
+            permissionLauncher.launch(
+                missingPermissions.toTypedArray()
+            )
         }
     }
 
     private fun startTrackingService() {
-        val intent = Intent(this, LocationService::class.java)
-        ContextCompat.startForegroundService(this, intent)
+
+        val intent = Intent(
+            this,
+            LocationService::class.java
+        )
+
+        androidx.core.content.ContextCompat.startForegroundService(
+            this,
+            intent
+        )
 
         Toast.makeText(
             this,
