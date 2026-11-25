@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var emailInput: EditText
     private lateinit var passwordInput: EditText
     private lateinit var loginButton: Button
+    private lateinit var forgotButton: Button
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var logoutButton: Button
@@ -52,7 +54,7 @@ class MainActivity : ComponentActivity() {
             if (locationGranted && notificationGranted) {
                 startTrackingService()
             } else {
-                showMessage("Location and notification permissions are required")
+                showMessage("Required permissions were not granted")
             }
         }
 
@@ -60,7 +62,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         auth = FirebaseAuth.getInstance()
-
         createScreen()
 
         val currentUser = auth.currentUser
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun createScreen() {
+
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(40, 60, 40, 40)
@@ -103,6 +105,11 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { loginEmployee() }
         }
 
+        forgotButton = Button(this).apply {
+            text = "Forgot Password?"
+            setOnClickListener { resetPassword() }
+        }
+
         startButton = Button(this).apply {
             text = "Start GPS Tracking"
             setOnClickListener { requestLocationPermission() }
@@ -123,6 +130,7 @@ class MainActivity : ComponentActivity() {
         layout.addView(emailInput)
         layout.addView(passwordInput)
         layout.addView(loginButton)
+        layout.addView(forgotButton)
         layout.addView(startButton)
         layout.addView(stopButton)
         layout.addView(logoutButton)
@@ -131,26 +139,29 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showLoginScreen() {
-        emailInput.visibility = android.view.View.VISIBLE
-        passwordInput.visibility = android.view.View.VISIBLE
-        loginButton.visibility = android.view.View.VISIBLE
-        startButton.visibility = android.view.View.GONE
-        stopButton.visibility = android.view.View.GONE
-        logoutButton.visibility = android.view.View.GONE
+        emailInput.visibility = View.VISIBLE
+        passwordInput.visibility = View.VISIBLE
+        loginButton.visibility = View.VISIBLE
+        forgotButton.visibility = View.VISIBLE
+        startButton.visibility = View.GONE
+        stopButton.visibility = View.GONE
+        logoutButton.visibility = View.GONE
         statusText.text = "Please login with your employee account"
     }
 
     private fun showApprovedScreen() {
-        emailInput.visibility = android.view.View.GONE
-        passwordInput.visibility = android.view.View.GONE
-        loginButton.visibility = android.view.View.GONE
-        startButton.visibility = android.view.View.VISIBLE
-        stopButton.visibility = android.view.View.VISIBLE
-        logoutButton.visibility = android.view.View.VISIBLE
+        emailInput.visibility = View.GONE
+        passwordInput.visibility = View.GONE
+        loginButton.visibility = View.GONE
+        forgotButton.visibility = View.GONE
+        startButton.visibility = View.VISIBLE
+        stopButton.visibility = View.VISIBLE
+        logoutButton.visibility = View.VISIBLE
         statusText.text = "Account approved. Tracking is under your control."
     }
 
     private fun loginEmployee() {
+
         val email = emailInput.text.toString().trim()
         val password = passwordInput.text.toString()
 
@@ -163,6 +174,7 @@ class MainActivity : ComponentActivity() {
 
         auth.signInWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
+
                 loginButton.isEnabled = true
 
                 if (task.isSuccessful) {
@@ -181,7 +193,33 @@ class MainActivity : ComponentActivity() {
             }
     }
 
+    private fun resetPassword() {
+
+        val email = emailInput.text.toString().trim()
+
+        if (email.isEmpty()) {
+            showMessage("Please enter your registered email first")
+            return
+        }
+
+        auth.sendPasswordResetEmail(email)
+            .addOnCompleteListener { task ->
+
+                if (task.isSuccessful) {
+                    showMessage(
+                        "Password reset link sent. Check your email."
+                    )
+                } else {
+                    showMessage(
+                        task.exception?.localizedMessage
+                            ?: "Unable to send reset email"
+                    )
+                }
+            }
+    }
+
     private fun checkApproval(uid: String) {
+
         statusText.text = "Checking admin approval..."
 
         FirebaseDatabase.getInstance()
@@ -212,6 +250,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestLocationPermission() {
+
         val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
@@ -229,9 +268,6 @@ class MainActivity : ComponentActivity() {
         }
 
         if (missing.isEmpty()) {
-            showMessage(
-                "Use of GPS tracking requires your consent. Press Start again to confirm."
-            )
             startTrackingService()
         } else {
             permissionLauncher.launch(missing.toTypedArray())
