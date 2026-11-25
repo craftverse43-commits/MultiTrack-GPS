@@ -1,5 +1,5 @@
 
-name: Build MultiTrack GPS APK
+name: name: Build MultiTrack GPS APK v2
 
 on:
   workflow_dispatch:
